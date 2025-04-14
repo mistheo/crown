@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Jeu des Couronnes</title>
+  <!-- Importation de Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Importation d'AlpineJS via CDN -->
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    /* Overlay arc-en-ciel pour l'animation */
+    .celebration-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet);
+      animation: fadeOut 5s forwards;
+      z-index: 500;
+      pointer-events: none;
+      opacity: 0.8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+    
+    /* Style du message affiché au centre de l'overlay */
+    .celebration-message {
+      font-size: 3rem;
+      font-weight: bold;
+      color: white;
+      animation: messageFade 5s forwards;
+    }
+    @keyframes messageFade {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.2); }
+    }
+    
+    /* Conteneur de couronnes animées */
+    .celebration-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    /* Style des éléments de couronne */
+    .crown {
+      position: absolute;
+      bottom: -50px;
+      font-size: 2rem;
+      animation: floatUp 4s ease-in-out forwards;
+    }
+    @keyframes floatUp {
+      0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-100vh) rotate(360deg);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  <!-- Composant principal géré par AlpineJS -->
+  <div x-data="game()" x-init="init()" class="max-w-4xl mx-auto relative">
+    <!-- Bannière du minuteur -->
+    <h1 class="text-2xl font-bold mb-4 text-center">Jeu des Couronnes</h1>
+    
+    <!-- Grille de jeu -->
+    <div class="grid border-2 border-black mx-auto w-fit" :class="`grid-cols-${cols}`">
+      <template x-for="(row, i) in grid.slice().reverse()" :key="i">
+        <template x-for="(cell, j) in row" :key="j">
+          <div 
+            @click="cellClicked(rows - i - 1, j);"
+            class="w-12 h-12 flex items-center justify-center border border-black text-lg font-bold cursor-pointer transition duration-100"
+            :class="cellClasses(cell)">
+            <span class="relative">
+              <template x-if="cell.mark === 'C'">
+                <span>👑</span>
+              </template>
+              <template x-if="cell.mark === 'X'">
+                <span>❌</span>                
+              </template>
+            </span>
+          </div>
+        </template>
+      </template>
+    </div>
+
+    <div class="text-center mx-2">
+      Temps écoulé : <span x-text="time.formattedTime"></span>
+    </div>
+
+    <!-- Boutons de contrôle -->
+    <div class="flex justify-center gap-4 mt-4">
+      <button @click="reroll(seed); resetTimer(); startTimer()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150">
+        Reroll
+      </button>
+      <button @click="resetMarks()" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition duration-150">
+        Clear
+      </button>
+    </div>
+
+    <!-- Modal pour les règles du jeu -->
+    <div x-data="{ showModal: false }">
+      <!-- Bouton pour ouvrir le modal -->
+      <div class="fixed top-4 right-4 z-50">
+      <button @click="showModal = true" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition">
+        📜
+      </button>
+      </div>
+
+      <!-- Contenu du modal -->
+      <div 
+      x-show="showModal" 
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      style="display: none;"
+      >
+      <div class="bg-white rounded shadow-lg w-11/12 max-w-lg p-6">
+      <h2 class="text-xl font-bold mb-4">Règles du Jeu des Couronnes</h2>
+      <ul class="list-disc pl-6 mb-4">
+      <li>Chaque ligne doit contenir exactement une couronne (<span>👑</span>).</li>
+      <li>Chaque colonne doit contenir exactement une couronne (<span>👑</span>).</li>
+      <li>Chaque région colorée doit contenir exactement une couronne (<span>👑</span>).</li>
+      <li>Les couronnes ne peuvent pas être adjacentes, même en diagonale.</li>
+      <li>Utilisez les marques (<span>❌</span>) pour vous aider à éliminer des options.</li>
+      </ul>
+      <div class="text-right">
+      <button @click="showModal = false" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+        Fermer
+      </button>
+      </div>
+      </div>
+      </div>
+    </div>
+    
+
+    <!-- ⚙️ Bouton engrenage en bas à droite -->
+    <div class="fixed bottom-4 right-4 z-50">
+      <button @click="settingsOpen = true" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition">
+        ⚙️
+      </button>
+    </div>
+
+    <!-- 🔧 Panneau latéral de paramètres -->
+    <div 
+      x-show="settingsOpen" 
+      x-transition:enter="transition ease-out duration-300" 
+      x-transition:enter-start="translate-x-full" 
+      x-transition:enter-end="translate-x-0" 
+      x-transition:leave="transition ease-in duration-300" 
+      x-transition:leave-start="translate-x-0" 
+      x-transition:leave-end="translate-x-full"
+      class="fixed top-0 right-0 h-full w-80 bg-white shadow-lg border-l border-gray-300 z-40 p-4 flex flex-col z-50"
+      style="display: none"
+    >
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Paramètres</h2>
+        <button @click="settingsOpen = false" class="text-gray-600 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+
+      <!-- 🌱 Champ Seed -->
+      <label class="block mb-2 font-medium">Seed (optionnel)</label>
+      <input x-model="seed" class="w-full border px-3 py-2 rounded mb-4" placeholder="12345 ou mot-clé">
+
+      <!-- 🔄 Générer la grille avec la seed -->
+      <button @click="reroll(seed);  resetTimer(); startTimer(); settingsOpen = false" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+        Générer avec seed
+      </button>
+    </div>
+  </div>
+  
+  <script>
+    function game() {
+      let previouslyWon = false;
+      const colors = [
+        "bg-red-200", "bg-blue-300", "bg-green-200", "bg-yellow-200",
+        "bg-purple-200", "bg-pink-300", "bg-indigo-200", "bg-gray-200"
+      ];
+      const GRID_SIZE = 8;
+      const rows = GRID_SIZE, cols = GRID_SIZE;
+      
+      // Fonction pour le random seedé
+      function seededRandom(seed) {
+        let s = 0;
+        for (let i = 0; i < seed.length; i++) {
+          s = (s << 5) - s + seed.charCodeAt(i);
+          s |= 0;
+        }
+        return function() {
+          s = Math.imul(48271, s) % 2147483647;
+          return (s & 0x7fffffff) / 2147483647;
+        };
+      }
+
+      // Génération de la grille avec possibilité de seed
+      function generateGrid(seed = "") {
+        let rng = seed ? seededRandom(seed) : Math.random;
+        let grid = Array.from({ length: rows }, () =>
+          Array.from({ length: cols }, () => ({ region: null, mark: '', isMissedPlay: false }))
+        );
+        let used = new Set();
+        for (let region = 0; region < GRID_SIZE; region++) {
+          let placed = false;
+          while (!placed) {
+            let i = Math.floor(rng() * rows);
+            let j = Math.floor(rng() * cols);
+            let key = `${i},${j}`;
+            if (!used.has(key)) {
+              grid[i][j].region = region;
+              used.add(key);
+              placed = true;
+            }
+          }
+        }
+        function getNeighbors(i, j) {
+          const deltas = [[-1,0],[1,0],[0,-1],[0,1]];
+          let neighbors = [];
+          for (let [di,dj] of deltas) {
+            let ni = i + di, nj = j + dj;
+            if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
+              neighbors.push([ni, nj]);
+            }
+          }
+          return neighbors;
+        }
+        let remaining = rows * cols - used.size;
+        while (remaining > 0) {
+          let regionsOrder = [...Array(GRID_SIZE).keys()].sort(() => rng() - 0.5);
+          for (let region of regionsOrder) {
+            let regionCells = [];
+            for (let i = 0; i < rows; i++) {
+              for (let j = 0; j < cols; j++) {
+                if (grid[i][j].region === region) {
+                  regionCells.push([i, j]);
+                }
+              }
+            }
+            let candidates = [];
+            for (let [i, j] of regionCells) {
+              for (let [ni, nj] of getNeighbors(i, j)) {
+                if (grid[ni][nj].region === null) {
+                  candidates.push([ni, nj]);
+                }
+              }
+            }
+            if (candidates.length > 0) {
+              let [ci, cj] = candidates[Math.floor(rng() * candidates.length)];
+              grid[ci][cj].region = region;
+              remaining--;
+              if (remaining <= 0) break;
+            }
+          }
+        }
+        let regionCounts = Array(GRID_SIZE).fill(0);
+        for (let i = 0; i < rows; i++) {
+          for (let j = 0; j < cols; j++) {
+            regionCounts[grid[i][j].region]++;
+          }
+        }
+        if (regionCounts.some(count => count < 4)) {
+          return generateGrid(seed);
+        }
+        return grid;
+      }
+      
+      // Animation et message de félicitations en cas de victoire
+      function celebrate() {
+        const overlay = document.createElement('div');
+        overlay.className = 'celebration-overlay';
+        const messageEl = document.createElement('div');
+        messageEl.className = 'celebration-message';
+        messageEl.innerText = "Bravo ! Vous avez gagné !";
+        overlay.appendChild(messageEl);
+        document.body.appendChild(overlay);
+        setTimeout(() => overlay.remove(), 5000);
+  
+        const container = document.createElement('div');
+        container.className = 'celebration-container';
+        container.innerHTML = Array.from({ length: 30 }).map(() => {
+          const left = Math.random() * 100;
+          const delay = Math.random() * 2;
+          return `<div class="crown" style="left: ${left}%; animation-delay: ${delay}s;">👑</div>`;
+        }).join('');
+        document.body.appendChild(container);
+        setTimeout(() => container.remove(), 8000);
+      }
+  
+      return {
+        grid: generateGrid(),
+        win: false,
+        colors,
+        rows,
+        cols,
+        time: {
+          min: 0,
+          sec: 0,
+          formattedTime: "00:00"
+        },
+        timerInterval: null,
+        // Paramètres du panneau
+        settingsOpen: false,
+        seed: '',
+  
+        // Initialisation (démarre le timer)
+        init() {
+          this.startTimer();
+        },
+  
+        // Démarre le timer avec setInterval
+        startTimer() {
+          if (this.timerInterval) clearInterval(this.timerInterval);
+          this.timerInterval = setInterval(() => {
+            this.time.sec++;
+            if (this.time.sec >= 60) {
+              this.time.sec = 0;
+              this.time.min++;
+            }
+            this.time.formattedTime = 
+              (this.time.min < 10 ? "0" + this.time.min : this.time.min) + ":" +
+              (this.time.sec < 10 ? "0" + this.time.sec : this.time.sec);
+          }, 1000);
+        },
+  
+        // Réinitialise le timer et le redémarre
+        resetTimer() {
+          clearInterval(this.timerInterval);
+          this.time.min = 0;
+          this.time.sec = 0;
+          this.time.formattedTime = "00:00";
+          this.startTimer();
+        },
+  
+        // Retourne les classes CSS pour une cellule
+        cellClasses(cell) {
+          let base = this.colors[cell.region];
+          if (cell.isMissedPlay) {
+            return `${base} border-4 border-red-500`;
+          }
+          return `${base} border border-black`;
+        },
+  
+        // Gestion du clic sur une cellule
+        cellClicked(i, j) {
+          const cell = this.grid[i][j];
+          cell.isMissedPlay = false;
+          if (cell.mark === '') {
+            cell.mark = 'C';
+          } else if (cell.mark === 'C') {
+            cell.mark = 'X';
+          } else {
+            cell.mark = '';
+          }
+        },
+  
+        // Réinitialise les marques sur la grille
+        resetMarks() {
+          for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+              this.grid[i][j].mark = '';
+              this.grid[i][j].isMissedPlay = false;
+            }
+          }
+          this.win = false;
+          previouslyWon = false;
+        },
+  
+        // Regénère la grille en utilisant la seed (si renseignée)
+        reroll(customSeed = "") {
+          this.grid = generateGrid(customSeed);
+          this.win = false;
+          previouslyWon = false;
+        },
+  
+        // Évalue la grille afin de vérifier les conditions de victoire
+        evaluate() {
+          this.win = false;
+          // Réinitialisation des flags d'erreur
+          for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+              this.grid[i][j].isMissedPlay = false;
+            }
+          }
+          let hasError = false;
+          // Vérification des lignes
+          for (let i = 0; i < this.rows; i++) {
+            let crowns = [];
+            for (let j = 0; j < this.cols; j++) {
+              if (this.grid[i][j].mark === 'C') crowns.push([i, j]);
+            }
+            if (crowns.length !== 1) {
+              hasError = true;
+              crowns.forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
+            }
+          }
+          // Vérification des colonnes
+          for (let j = 0; j < this.cols; j++) {
+            let crowns = [];
+            for (let i = 0; i < this.rows; i++) {
+              if (this.grid[i][j].mark === 'C') crowns.push([i, j]);
+            }
+            if (crowns.length !== 1) {
+              hasError = true;
+              crowns.forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
+            }
+          }
+          // Vérification des régions
+          let regionCrowns = Array(GRID_SIZE).fill().map(() => []);
+          for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+              if (this.grid[i][j].mark === 'C') {
+                regionCrowns[this.grid[i][j].region].push([i, j]);
+              }
+            }
+          }
+          for (let r = 0; r < GRID_SIZE; r++) {
+            if (regionCrowns[r].length !== 1) {
+              hasError = true;
+              regionCrowns[r].forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
+            }
+          }
+          // Vérification des cases adjacentes
+          const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+          for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+              if (this.grid[i][j].mark === 'C') {
+                for (let [di, dj] of dirs) {
+                  let ni = i + di, nj = j + dj;
+                  if (ni >= 0 && ni < this.rows && nj >= 0 && nj < this.cols) {
+                    if (this.grid[ni][nj].mark === 'C') {
+                      this.grid[i][j].isMissedPlay = true;
+                      this.grid[ni][nj].isMissedPlay = true;
+                      hasError = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          this.win = !hasError;
+          if (this.win && !previouslyWon) {
+            celebrate();
+            previouslyWon = true;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>
