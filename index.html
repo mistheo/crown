@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Jeu des Couronnes</title>
-  <!-- Importation de Tailwind CSS via CDN -->
+  <!-- Import Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Importation d'AlpineJS via CDN -->
+  <!-- Import AlpineJS via CDN -->
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     /* Overlay arc-en-ciel pour l'animation */
@@ -52,45 +52,76 @@
       z-index: 1000;
       pointer-events: none;
     }
-    /* Style des éléments de couronne */
+    /* Animation de chute : les couronnes tombent depuis le haut */
     .crown {
       position: absolute;
-      bottom: -50px;
+      top: -50px;
       font-size: 2rem;
-      animation: floatUp 4s ease-in-out forwards;
+      animation: fallDown 4s ease-in-out forwards;
     }
-    @keyframes floatUp {
+    @keyframes fallDown {
       0% {
         transform: translateY(0) rotate(0deg);
         opacity: 1;
       }
       100% {
-        transform: translateY(-100vh) rotate(360deg);
+        transform: translateY(100vh) rotate(360deg);
         opacity: 0;
       }
     }
+    
+    /* Styles pour les off-canvases */
+    .offcanvas {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: 300px;
+      background: white;
+      z-index: 600;
+      transition: transform 0.3s ease-in-out;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    .offcanvas-right {
+      right: 0;
+      transform: translateX(100%);
+    }
+    .offcanvas-left {
+      left: 0;
+      transform: translateX(-100%);
+    }
+    .offcanvas-open { transform: translateX(0); }
+    
+    /* Zone de contrôle en bas au centre */
+    .control-panel {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 700;
+      display: flex;
+      gap: 1rem;
+    }
   </style>
 </head>
-<body class="bg-gray-100 p-4">
-  <!-- Composant principal géré par AlpineJS -->
-  <div x-data="game()" x-init="init()" class="max-w-4xl mx-auto relative">
-    <!-- Bannière du minuteur -->
+<body class="bg-gray-100 p-4" x-data="game()">
+  <div class="max-w-4xl mx-auto">
     <h1 class="text-2xl font-bold mb-4 text-center">Jeu des Couronnes</h1>
     
     <!-- Grille de jeu -->
     <div class="grid border-2 border-black mx-auto w-fit" :class="`grid-cols-${cols}`">
       <template x-for="(row, i) in grid.slice().reverse()" :key="i">
         <template x-for="(cell, j) in row" :key="j">
+          <!-- Modification ici : classes w-16 h-16 pour agrandir les cellules -->
           <div 
-            @click="cellClicked(rows - i - 1, j);"
-            class="w-12 h-12 flex items-center justify-center border border-black text-lg font-bold cursor-pointer transition duration-100"
-            :class="cellClasses(cell)">
+            @click="handleCellClick(rows - i - 1, j)"
+            class="w-16 h-16 flex items-center justify-center border text-lg font-bold cursor-pointer transition duration-100"
+            :class="getCellClasses(cell)">
             <span class="relative">
               <template x-if="cell.mark === 'C'">
                 <span>👑</span>
               </template>
               <template x-if="cell.mark === 'X'">
-                <span>❌</span>                
+                <span>❌</span>
               </template>
             </span>
           </div>
@@ -98,227 +129,242 @@
       </template>
     </div>
 
-    <div class="text-center mx-2">
-      Temps écoulé : <span x-text="time.formattedTime"></span>
-    </div>
+    <!-- Affichage de la seed en cours -->
+    <p class="text-center mt-4 text-lg">Seed actuelle : <span class="font-bold" x-text="seed"></span></p>
+  </div>
 
-    <!-- Boutons de contrôle -->
-    <div class="flex justify-center gap-4 mt-4">
-      <button @click="reroll(seed); resetTimer(); startTimer()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150">
-        Reroll
-      </button>
-      <button @click="resetMarks()" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition duration-150">
-        Clear
-      </button>
-    </div>
-
-    <!-- Modal pour les règles du jeu -->
-    <div x-data="{ showModal: false }">
-      <!-- Bouton pour ouvrir le modal -->
-      <div class="fixed top-4 right-4 z-50">
-      <button @click="showModal = true" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition">
-        📜
-      </button>
-      </div>
-
-      <!-- Contenu du modal -->
-      <div 
-      x-show="showModal" 
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      style="display: none;"
-      >
-      <div class="bg-white rounded shadow-lg w-11/12 max-w-lg p-6">
-      <h2 class="text-xl font-bold mb-4">Règles du Jeu des Couronnes</h2>
-      <ul class="list-disc pl-6 mb-4">
-      <li>Chaque ligne doit contenir exactement une couronne (<span>👑</span>).</li>
-      <li>Chaque colonne doit contenir exactement une couronne (<span>👑</span>).</li>
-      <li>Chaque région colorée doit contenir exactement une couronne (<span>👑</span>).</li>
-      <li>Les couronnes ne peuvent pas être adjacentes, même en diagonale.</li>
-      <li>Utilisez les marques (<span>❌</span>) pour vous aider à éliminer des options.</li>
-      </ul>
-      <div class="text-right">
-      <button @click="showModal = false" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
-        Fermer
-      </button>
-      </div>
-      </div>
-      </div>
-    </div>
-    
-
-    <!-- ⚙️ Bouton engrenage en bas à droite -->
-    <div class="fixed bottom-4 right-4 z-50">
-      <button @click="settingsOpen = true" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition">
-        ⚙️
-      </button>
-    </div>
-
-    <!-- 🔧 Panneau latéral de paramètres -->
-    <div 
-      x-show="settingsOpen" 
-      x-transition:enter="transition ease-out duration-300" 
-      x-transition:enter-start="translate-x-full" 
-      x-transition:enter-end="translate-x-0" 
-      x-transition:leave="transition ease-in duration-300" 
-      x-transition:leave-start="translate-x-0" 
-      x-transition:leave-end="translate-x-full"
-      class="fixed top-0 right-0 h-full w-80 bg-white shadow-lg border-l border-gray-300 z-40 p-4 flex flex-col z-50"
-      style="display: none"
-    >
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">Paramètres</h2>
-        <button @click="settingsOpen = false" class="text-gray-600 hover:text-gray-800 text-2xl">&times;</button>
-      </div>
-
-      <!-- 🌱 Champ Seed -->
-      <label class="block mb-2 font-medium">Seed (optionnel)</label>
-      <input x-model="seed" class="w-full border px-3 py-2 rounded mb-4" placeholder="12345 ou mot-clé">
-
-      <!-- 🔄 Générer la grille avec la seed -->
-      <button @click="reroll(seed);  resetTimer(); startTimer(); settingsOpen = false" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
-        Générer avec seed
+  <!-- Off-canvas pour la saisie de la seed (depuis la droite) -->
+  <div 
+    class="offcanvas offcanvas-right" 
+    :class="{'offcanvas-open': showSeedPanel}"
+    @keydown.enter.window="validateSeed()">
+    <div class="p-4">
+      <h2 class="text-xl font-bold mb-2">Entrer une seed</h2>
+      <input 
+        type="text" 
+        placeholder="Tapez un mot-clé ou chiffre" 
+        class="border p-2 w-full"
+        x-model="seedInput">
+      <button 
+        @click="validateSeed()" 
+        class="mt-2 w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition">
+        Valider
       </button>
     </div>
   </div>
-  
-  <script>
-    function game() {
-      let previouslyWon = false;
-      const colors = [
-        "bg-red-200", "bg-blue-300", "bg-green-200", "bg-yellow-200",
-        "bg-purple-200", "bg-pink-300", "bg-indigo-200", "bg-gray-200"
-      ];
-      const GRID_SIZE = 8;
-      const rows = GRID_SIZE, cols = GRID_SIZE;
-      
-      // Fonction pour le random seedé
-      function seededRandom(seed) {
-        let s = 0;
-        for (let i = 0; i < seed.length; i++) {
-          s = (s << 5) - s + seed.charCodeAt(i);
-          s |= 0;
-        }
-        return function() {
-          s = Math.imul(48271, s) % 2147483647;
-          return (s & 0x7fffffff) / 2147483647;
-        };
-      }
 
-      // Génération de la grille avec possibilité de seed
-      function generateGrid(seed = "") {
-        let rng = seed ? seededRandom(seed) : Math.random;
-        let grid = Array.from({ length: rows }, () =>
-          Array.from({ length: cols }, () => ({ region: null, mark: '', isMissedPlay: false }))
-        );
-        let used = new Set();
-        for (let region = 0; region < GRID_SIZE; region++) {
-          let placed = false;
-          while (!placed) {
-            let i = Math.floor(rng() * rows);
-            let j = Math.floor(rng() * cols);
-            let key = `${i},${j}`;
-            if (!used.has(key)) {
-              grid[i][j].region = region;
-              used.add(key);
-              placed = true;
-            }
+  <!-- Off-canvas pour les règles (depuis la gauche) -->
+  <div
+    class="offcanvas offcanvas-left" 
+    :class="{'offcanvas-open': showRulesPanel}" >
+    <div class="p-4">
+      <h2 class="text-xl font-bold mb-2">Règles du Jeu des Couronnes</h2>
+      <ul class="list-disc pl-4 mb-4">
+        <li>Chaque ligne doit contenir exactement une couronne (👑).</li>
+        <li>Chaque colonne doit contenir exactement une couronne (👑).</li>
+        <li>Chaque région colorée doit contenir exactement une couronne (👑).</li>
+        <li>Les couronnes ne peuvent pas être adjacentes, même en diagonale.</li>
+        <li>Utilisez les marques (❌) pour éliminer des options.</li>
+      </ul>
+      <button 
+        @click="showRulesPanel = false"
+        class="mt-2 w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+        Fermer
+      </button>
+    </div>
+  </div>
+
+  <!-- Panneau de contrôles en bas au centre -->
+  <div class="control-panel">
+    <button 
+      @click="showRulesPanel = !showRulesPanel" 
+      class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-lg">
+      Règles
+    </button>
+    <button 
+      @click="showSeedPanel = !showSeedPanel" 
+      class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition text-lg">
+      Seed
+    </button>
+    <button 
+      @click="rerollGame(); resetTimer(); startTimer()" 
+      class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition text-lg">
+      Reroll
+    </button>
+    <button 
+      @click="clearMarks()" 
+      class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition text-lg">
+      Clear
+    </button> 
+  </div>
+
+  <script>
+    // ----------------- Random Seed Functions -----------------
+    // Générateur de hash xmur3 pour transformer la seed en entier
+    function xmur3(str) {
+      for (var i = 0, h = 1779033703 ^ str.length; i < str.length; i++) {
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      }
+      return function() {
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        return (h ^= h >>> 16) >>> 0;
+      }
+    }
+    // Générateur pseudo-aléatoire mulberry32
+    function mulberry32(a) {
+      return function() {
+        var t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      }
+    }
+    // -----------------------------------------------------------
+
+    // Modification de generateGrid pour accepter un générateur de nombres aléatoires "rand"
+    const generateGrid = (rand) => {
+      const rows = 8, cols = 8;
+      let grid = Array.from({ length: rows }, () =>
+        Array.from({ length: cols }, () => ({ region: null, mark: '', isMissedPlay: false }))
+      );
+      const usedPositions = new Set();
+      
+      // Initialisation des régions avec une cellule par région
+      for (let region = 0; region < rows; region++) {
+        let placed = false;
+        while (!placed) {
+          const i = Math.floor(rand() * rows);
+          const j = Math.floor(rand() * cols);
+          const key = `${i},${j}`;
+          if (!usedPositions.has(key)) {
+            grid[i][j].region = region;
+            usedPositions.add(key);
+            placed = true;
           }
         }
-        function getNeighbors(i, j) {
-          const deltas = [[-1,0],[1,0],[0,-1],[0,1]];
-          let neighbors = [];
-          for (let [di,dj] of deltas) {
-            let ni = i + di, nj = j + dj;
-            if (ni >= 0 && ni < rows && nj >= 0 && nj < cols) {
-              neighbors.push([ni, nj]);
-            }
-          }
-          return neighbors;
-        }
-        let remaining = rows * cols - used.size;
-        while (remaining > 0) {
-          let regionsOrder = [...Array(GRID_SIZE).keys()].sort(() => rng() - 0.5);
-          for (let region of regionsOrder) {
-            let regionCells = [];
-            for (let i = 0; i < rows; i++) {
-              for (let j = 0; j < cols; j++) {
-                if (grid[i][j].region === region) {
-                  regionCells.push([i, j]);
-                }
-              }
-            }
-            let candidates = [];
-            for (let [i, j] of regionCells) {
-              for (let [ni, nj] of getNeighbors(i, j)) {
-                if (grid[ni][nj].region === null) {
-                  candidates.push([ni, nj]);
-                }
-              }
-            }
-            if (candidates.length > 0) {
-              let [ci, cj] = candidates[Math.floor(rng() * candidates.length)];
-              grid[ci][cj].region = region;
-              remaining--;
-              if (remaining <= 0) break;
-            }
-          }
-        }
-        let regionCounts = Array(GRID_SIZE).fill(0);
-        for (let i = 0; i < rows; i++) {
-          for (let j = 0; j < cols; j++) {
-            regionCounts[grid[i][j].region]++;
-          }
-        }
-        if (regionCounts.some(count => count < 4)) {
-          return generateGrid(seed);
-        }
-        return grid;
       }
       
-      // Animation et message de félicitations en cas de victoire
-      function celebrate() {
-        const overlay = document.createElement('div');
-        overlay.className = 'celebration-overlay';
-        const messageEl = document.createElement('div');
-        messageEl.className = 'celebration-message';
-        messageEl.innerText = "Bravo ! Vous avez gagné !";
-        overlay.appendChild(messageEl);
-        document.body.appendChild(overlay);
-        setTimeout(() => overlay.remove(), 5000);
-  
-        const container = document.createElement('div');
-        container.className = 'celebration-container';
-        container.innerHTML = Array.from({ length: 30 }).map(() => {
-          const left = Math.random() * 100;
-          const delay = Math.random() * 2;
-          return `<div class="crown" style="left: ${left}%; animation-delay: ${delay}s;">👑</div>`;
-        }).join('');
-        document.body.appendChild(container);
-        setTimeout(() => container.remove(), 8000);
+      // Propagation des régions vers les cellules voisines
+      let remaining = rows * cols - usedPositions.size;
+      while (remaining > 0) {
+        const regionsOrder = [...Array(rows).keys()].sort(() => rand() - 0.5);
+        for (let region of regionsOrder) {
+          const regionCells = [];
+          for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < cols; j++) {
+              if (grid[i][j].region === region) regionCells.push([i, j]);
+            }
+          }
+          const candidates = [];
+          for (const [i, j] of regionCells) {
+            [[-1,0],[1,0],[0,-1],[0,1]].forEach(([di, dj]) => {
+              const ni = i + di, nj = j + dj;
+              if (ni >= 0 && ni < rows && nj >= 0 && nj < cols && grid[ni][nj].region === null) {
+                candidates.push([ni, nj]);
+              }
+            });
+          }
+          if (candidates.length > 0) {
+            const [ci, cj] = candidates[Math.floor(rand() * candidates.length)];
+            grid[ci][cj].region = region;
+            remaining--;
+            if (remaining <= 0) break;
+          }
+        }
       }
-  
+      
+      // Vérification de la taille minimale des régions (>= 3 cellules)
+      const regionCounts = Array(rows).fill(0);
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          regionCounts[ grid[i][j].region ]++;
+        }
+      }
+      if (regionCounts.some(count => count < 3)) {
+        return generateGrid(rand);
+      }
+      return grid;
+    };
+
+    // Affiche l'animation de célébration avec les couronnes
+    const celebrate = () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'celebration-overlay';
+      const messageEl = document.createElement('div');
+      messageEl.className = 'celebration-message';
+      messageEl.innerText = "Bravo ! Vous avez gagné !";
+      overlay.appendChild(messageEl);
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 5000);
+
+      const container = document.createElement('div');
+      container.className = 'celebration-container';
+      container.innerHTML = Array.from({ length: 30 }).map(() => {
+        const left = Math.random() * 100;
+        const delay = Math.random() * 2;
+        return `<div class="crown" style="left: ${left}%; animation-delay: ${delay}s;">👑</div>`;
+      }).join('');
+      document.body.appendChild(container);
+      setTimeout(() => container.remove(), 8000);
+    };
+
+    // Fonction principale utilisée par AlpineJS
+    function game() {
+      // Les panneaux off-canvas
       return {
-        grid: generateGrid(),
+        grid: [],
         win: false,
-        colors,
-        rows,
-        cols,
-        time: {
-          min: 0,
-          sec: 0,
-          formattedTime: "00:00"
-        },
+        colors: [
+          "bg-red-200", "bg-blue-300", "bg-green-200", "bg-yellow-200",
+          "bg-purple-200", "bg-pink-300", "bg-indigo-200", "bg-gray-200"
+        ],
+        rows: 8,
+        cols: 8,
+        time: { min: 0, sec: 0 },
+        formattedTime: "00:00",
+        seed: "",       // Affiche la seed actuelle
+        seedInput: "",  // Stocke l'input de l'utilisateur
+        showSeedPanel: false,  // Contrôle l'affichage de l'off-canvas pour la seed
+        showRulesPanel: false, // Contrôle l'affichage de l'off-canvas pour les règles
+        prng: null,     // Générateur aléatoire seedable
         timerInterval: null,
-        // Paramètres du panneau
-        settingsOpen: false,
-        seed: '',
-  
-        // Initialisation (démarre le timer)
+
+        // Initialise la partie (seed et grille)
         init() {
-          this.startTimer();
+          // Si aucune seed n'est entrée, on génère une seed aléatoire
+          if (!this.seed) {
+            this.seed = Math.floor(Math.random() * 1e8).toString();
+          }
+          this.updatePRNG(this.seed);
+          this.grid = generateGrid(this.prng);
         },
-  
-        // Démarre le timer avec setInterval
+
+        // Met à jour le générateur de nombres aléatoires à partir d'une seed donnée
+        updatePRNG(newSeed) {
+          this.seed = newSeed;
+          const seedFn = xmur3(newSeed);
+          this.prng = mulberry32(seedFn());
+        },
+
+        // Validation de la seed saisie dans l'off-canvas (et fermeture du panneau)
+        validateSeed() {
+          if (this.seedInput.trim() !== "") {
+            this.updatePRNG(this.seedInput.trim());
+            this.grid = generateGrid(this.prng);
+          }
+          this.seedInput = "";
+          this.showSeedPanel = false;
+        },
+
+        // Met à jour l'affichage du temps
+        updateFormattedTime() {
+          const m = this.time.min < 10 ? `0${this.time.min}` : this.time.min;
+          const s = this.time.sec < 10 ? `0${this.time.sec}` : this.time.sec;
+          this.formattedTime = `${m}:${s}`;
+        },
+
+        // Démarre le minuteur
         startTimer() {
           if (this.timerInterval) clearInterval(this.timerInterval);
           this.timerInterval = setInterval(() => {
@@ -327,45 +373,35 @@
               this.time.sec = 0;
               this.time.min++;
             }
-            this.time.formattedTime = 
-              (this.time.min < 10 ? "0" + this.time.min : this.time.min) + ":" +
-              (this.time.sec < 10 ? "0" + this.time.sec : this.time.sec);
+            this.updateFormattedTime();
           }, 1000);
         },
-  
-        // Réinitialise le timer et le redémarre
+
+        // Réinitialise le minuteur
         resetTimer() {
           clearInterval(this.timerInterval);
-          this.time.min = 0;
-          this.time.sec = 0;
-          this.time.formattedTime = "00:00";
-          this.startTimer();
+          this.time = { min: 0, sec: 0 };
+          this.updateFormattedTime();
         },
-  
-        // Retourne les classes CSS pour une cellule
-        cellClasses(cell) {
-          let base = this.colors[cell.region];
-          if (cell.isMissedPlay) {
-            return `${base} border-4 border-red-500`;
-          }
-          return `${base} border border-black`;
+
+        // Renvoie les classes CSS d'une cellule
+        getCellClasses(cell) {
+          const baseClass = this.colors[cell.region];
+          return cell.isMissedPlay
+            ? `${baseClass} border-4 border-red-500`
+            : `${baseClass} border border-black`;
         },
-  
+
         // Gestion du clic sur une cellule
-        cellClicked(i, j) {
+        handleCellClick(i, j) {
           const cell = this.grid[i][j];
           cell.isMissedPlay = false;
-          if (cell.mark === '') {
-            cell.mark = 'C';
-          } else if (cell.mark === 'C') {
-            cell.mark = 'X';
-          } else {
-            cell.mark = '';
-          }
+          cell.mark = cell.mark === '' ? 'C' : cell.mark === 'C' ? 'X' : '';
+          this.evaluateGrid();
         },
-  
-        // Réinitialise les marques sur la grille
-        resetMarks() {
+
+        // Réinitialise toutes les marques
+        clearMarks() {
           for (let i = 0; i < this.rows; i++) {
             for (let j = 0; j < this.cols; j++) {
               this.grid[i][j].mark = '';
@@ -373,50 +409,58 @@
             }
           }
           this.win = false;
-          previouslyWon = false;
         },
-  
-        // Regénère la grille en utilisant la seed (si renseignée)
-        reroll(customSeed = "") {
-          this.grid = generateGrid(customSeed);
+
+        // Reroll : recrée une nouvelle grille avec une nouvelle seed aléatoire
+        rerollGame() {
+          // Génère une nouvelle seed aléatoire, même si une seed avait été appliquée manuellement
+          const newSeed = Math.floor(Math.random() * 1e8).toString();
+          this.updatePRNG(newSeed);
+          this.grid = generateGrid(this.prng);
           this.win = false;
-          previouslyWon = false;
         },
-  
-        // Évalue la grille afin de vérifier les conditions de victoire
-        evaluate() {
-          this.win = false;
-          // Réinitialisation des flags d'erreur
+
+        // Évalue l'ensemble des règles du jeu
+        evaluateGrid() {
+          this.win = true;
+          // Réinitialisation des indicateurs d'erreur
           for (let i = 0; i < this.rows; i++) {
             for (let j = 0; j < this.cols; j++) {
               this.grid[i][j].isMissedPlay = false;
             }
           }
           let hasError = false;
+
           // Vérification des lignes
           for (let i = 0; i < this.rows; i++) {
-            let crowns = [];
+            const crowns = [];
             for (let j = 0; j < this.cols; j++) {
-              if (this.grid[i][j].mark === 'C') crowns.push([i, j]);
+              if (this.grid[i][j].mark === 'C') {
+                crowns.push([i, j]);
+              }
             }
             if (crowns.length !== 1) {
               hasError = true;
               crowns.forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
             }
           }
+
           // Vérification des colonnes
           for (let j = 0; j < this.cols; j++) {
-            let crowns = [];
+            const crowns = [];
             for (let i = 0; i < this.rows; i++) {
-              if (this.grid[i][j].mark === 'C') crowns.push([i, j]);
+              if (this.grid[i][j].mark === 'C') {
+                crowns.push([i, j]);
+              }
             }
             if (crowns.length !== 1) {
               hasError = true;
               crowns.forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
             }
           }
-          // Vérification des régions
-          let regionCrowns = Array(GRID_SIZE).fill().map(() => []);
+
+          // Vérification par région
+          const regionCrowns = Array.from({ length: this.rows }, () => []);
           for (let i = 0; i < this.rows; i++) {
             for (let j = 0; j < this.cols; j++) {
               if (this.grid[i][j].mark === 'C') {
@@ -424,19 +468,20 @@
               }
             }
           }
-          for (let r = 0; r < GRID_SIZE; r++) {
+          for (let r = 0; r < this.rows; r++) {
             if (regionCrowns[r].length !== 1) {
               hasError = true;
               regionCrowns[r].forEach(([i, j]) => this.grid[i][j].isMissedPlay = true);
             }
           }
-          // Vérification des cases adjacentes
-          const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+          // Vérification des cellules adjacentes (8 directions)
+          const adjacentDirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
           for (let i = 0; i < this.rows; i++) {
             for (let j = 0; j < this.cols; j++) {
               if (this.grid[i][j].mark === 'C') {
-                for (let [di, dj] of dirs) {
-                  let ni = i + di, nj = j + dj;
+                for (const [di, dj] of adjacentDirs) {
+                  const ni = i + di, nj = j + dj;
                   if (ni >= 0 && ni < this.rows && nj >= 0 && nj < this.cols) {
                     if (this.grid[ni][nj].mark === 'C') {
                       this.grid[i][j].isMissedPlay = true;
@@ -449,13 +494,16 @@
             }
           }
           this.win = !hasError;
-          if (this.win && !previouslyWon) {
+          if (this.win) {
             celebrate();
-            previouslyWon = true;
           }
         }
-      };
+      }
     }
+    // Initialisation
+    window.addEventListener('alpine:init', () => {
+      Alpine.data('game', game);
+    });
   </script>
 </body>
 </html>
