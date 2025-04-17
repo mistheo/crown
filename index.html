@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jeu des Couronnes</title>
   <!-- Import Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -24,118 +25,53 @@
       align-items: center;
       justify-content: center;
     }
-    @keyframes fadeOut {
-      0% { opacity: 0.8; }
-      100% { opacity: 0; }
-    }
-    
-    /* Style du message affiché au centre de l'overlay */
+    @keyframes fadeOut { 0% { opacity: 0.8; } 100% { opacity: 0; } }
     .celebration-message {
       font-size: 3rem;
       font-weight: bold;
       color: white;
       animation: messageFade 5s forwards;
     }
-    @keyframes messageFade {
-      0% { opacity: 1; transform: scale(1); }
-      100% { opacity: 0; transform: scale(1.2); }
-    }
-    
-    /* Conteneur de couronnes animées */
-    .celebration-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      overflow: hidden;
-      z-index: 1000;
-      pointer-events: none;
-    }
-    /* Animation de chute : les couronnes tombent depuis le haut */
-    .crown {
-      position: absolute;
-      top: -50px;
-      font-size: 2rem;
-      animation: fallDown 4s ease-in-out forwards;
-    }
-    @keyframes fallDown {
-      0% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(100vh) rotate(360deg);
-        opacity: 0;
-      }
-    }
-    
-    /* Styles pour les off-canvases */
-    .offcanvas {
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      width: 300px;
-      background: white;
-      z-index: 600;
-      transition: transform 0.3s ease-in-out;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-    }
-    .offcanvas-right {
-      right: 0;
-      transform: translateX(100%);
-    }
-    .offcanvas-left {
-      left: 0;
-      transform: translateX(-100%);
-    }
+    @keyframes messageFade { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.2); } }
+    .celebration-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; z-index: 1000; pointer-events: none; }
+    .crown { position: absolute; top: -50px; font-size: 2rem; animation: fallDown 4s ease-in-out forwards; }
+    @keyframes fallDown { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(360deg); opacity: 0; } }
+    /* Offcanvas base */
+    .offcanvas { position: fixed; top: 0; bottom: 0; background: white; z-index: 600; transition: transform 0.3s ease-in-out; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+    .offcanvas-right { right: 0; transform: translateX(100%); }
+    .offcanvas-left { left: 0; transform: translateX(-100%); }
     .offcanvas-open { transform: translateX(0); }
-    
-    /* Zone de contrôle en bas au centre */
-    .control-panel {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 700;
-      display: flex;
-      gap: 1rem;
-    }
   </style>
 </head>
 <body class="bg-gray-100 p-4" x-data="game()">
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold mb-4 text-center">Jeu des Couronnes</h1>
-    
+    <h1 class="text-2xl sm:text-3xl font-bold mb-4 text-center">Jeu des Couronnes</h1>
     <!-- Grille de jeu -->
     <div class="grid border-2 border-black mx-auto w-fit" :class="`grid-cols-${cols}`">
       <template x-for="(row, i) in grid.slice().reverse()" :key="i">
         <template x-for="(cell, j) in row" :key="j">
-          <!-- Modification ici : classes w-16 h-16 pour agrandir les cellules -->
           <div 
             @click="handleCellClick(rows - i - 1, j)"
-            class="w-16 h-16 flex items-center justify-center border text-lg font-bold cursor-pointer transition duration-100"
+            class="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center border text-lg sm:text-xl font-bold cursor-pointer transition duration-100"
             :class="getCellClasses(cell)">
             <span class="relative">
               <template x-if="cell.mark === 'C'">
-                <span class="text-3xl">👑</span>
+                <span class="text-2xl sm:text-3xl">👑</span>
               </template>
               <template x-if="cell.mark === 'X'">
-                <span class="text-3xl">❌</span>
+                <span class="text-2xl sm:text-3xl">❌</span>
               </template>
             </span>
           </div>
         </template>
       </template>
     </div>
-
-    <!-- Affichage de la seed en cours -->
     <p class="text-center mt-4 text-lg">Seed actuelle : <span class="font-bold" x-text="seed"></span></p>
   </div>
 
-  <!-- Off-canvas pour la saisie de la seed (depuis la droite) -->
+  <!-- Off-canvas Seed -->
   <div 
-    class="offcanvas offcanvas-right" 
+    class="offcanvas offcanvas-right w-full sm:w-80" 
     :class="{'offcanvas-open': showSeedPanel}"
     @keydown.enter.window="validateSeed()">
     <div class="p-4">
@@ -153,9 +89,9 @@
     </div>
   </div>
 
-  <!-- Off-canvas pour les règles (depuis la gauche) -->
+  <!-- Off-canvas Règles -->
   <div
-    class="offcanvas offcanvas-left" 
+    class="offcanvas offcanvas-left w-full sm:w-80" 
     :class="{'offcanvas-open': showRulesPanel}" >
     <div class="p-4">
       <h2 class="text-xl font-bold mb-2">Règles du Jeu des Couronnes</h2>
@@ -174,26 +110,26 @@
     </div>
   </div>
 
-  <!-- Panneau de contrôles en bas au centre -->
-  <div class="control-panel">
+  <!-- Panneau de contrôles -->
+  <div class="control-panel fixed bottom-4 left-1/2 transform -translate-x-1/2 z-700 flex">
     <button 
       @click="showRulesPanel = !showRulesPanel" 
-      class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-lg">
+      class="px-3 py-1 sm:px-4 sm:py-2 mx-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm sm:text-lg">
       Règles
     </button>
     <button 
       @click="showSeedPanel = !showSeedPanel" 
-      class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition text-lg">
+      class="px-3 py-1 sm:px-4 sm:py-2 mx-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition text-sm sm:text-lg">
       Seed
     </button>
     <button 
       @click="rerollGame(); resetTimer(); startTimer()" 
-      class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition text-lg">
+      class="px-3 py-1 sm:px-4 sm:py-2 mx-2 bg-green-500 text-white rounded hover:bg-green-600 transition text-sm sm:text-lg">
       Reroll
     </button>
     <button 
       @click="clearMarks()" 
-      class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition text-lg">
+      class="px-3 py-1 sm:px-4 sm:py-2 mx-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition text-sm sm:text-lg">
       Clear
     </button> 
   </div>
